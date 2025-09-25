@@ -1,133 +1,142 @@
 package ru.yandex.praktikum.scooter.api;
 
 import io.qameta.allure.Step;
-import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import com.github.javafaker.Faker;
 
 import static io.restassured.RestAssured.given;
 
 public class Courier {
+    private final String baseUri;
+    private final String courierEndpoint;
+    private final String courierLoginEndpoint;
 
-    private final String BASE_URI;
-    private final String END_POINT_COURIER;
-    private final String END_POINT_COURIER_LOGIN;
+    private final Faker faker = new Faker();
 
-    Faker faker = new Faker();
-    String username = faker.name().username();
-    String firstName = faker.name().firstName();
-    String password = faker.internet().password(4, 8, false, false);
-    String invalid_username = "snikers";
-    String null_username = "";
-    String invalid_password = "01010101010";
-    String null_password = "";
+    // Константы для тестовых данных
+    private static final String INVALID_USERNAME = "snikers";
+    private static final String INVALID_PASSWORD = "01010101010";
+    private static final String EMPTY_STRING = "";
 
-
-    public Courier(String BASE_URI, String END_POINT_COURIER, String END_POINT_COURIER_LOGIN){
-        this.BASE_URI = BASE_URI;
-        this.END_POINT_COURIER = END_POINT_COURIER;
-        this.END_POINT_COURIER_LOGIN = END_POINT_COURIER_LOGIN;
+    public Courier(String baseUri, String courierEndpoint, String courierLoginEndpoint) {
+        this.baseUri = baseUri;
+        this.courierEndpoint = courierEndpoint;
+        this.courierLoginEndpoint = courierLoginEndpoint;
     }
 
-    public void setUp(){
-        RestAssured.baseURI = BASE_URI;
+    // Методы для генерации тестовых данных
+    public CourierAuthorization createValidCourierData() {
+        return new CourierAuthorization(
+                faker.name().username(),
+                faker.internet().password(4, 8, false, false),
+                faker.name().firstName()
+        );
     }
 
-    @Step("Два поля в теле запроса вместо трёх обязательных")
-    public Response creatingTwoFieldsCourier(){
-        CourierAuthorizationWithoutField json = new CourierAuthorizationWithoutField(username, password);
-        Response twoFieldsResponse = given()
-                .header("Content-type", "application/json")
-                .body(json)
-                .when()
-                .post(END_POINT_COURIER);
-        return twoFieldsResponse;
+    public CourierAuthorization createCourierDataWithoutPassword() {
+        return new CourierAuthorization(
+                faker.name().username(),
+                null,
+                faker.name().firstName()
+        );
     }
 
+    public CourierLoginData createValidLoginData() {
+        return new CourierLoginData(
+                faker.name().username(),
+                faker.internet().password(4, 8, false, false)
+        );
+    }
+
+    public CourierLoginData createLoginDataWithInvalidLogin() {
+        return new CourierLoginData(INVALID_USERNAME, faker.internet().password(4, 8, false, false));
+    }
+
+    public CourierLoginData createLoginDataWithInvalidPassword() {
+        return new CourierLoginData(faker.name().username(), INVALID_PASSWORD);
+    }
+
+    public CourierLoginData createLoginDataWithEmptyLogin() {
+        return new CourierLoginData(EMPTY_STRING, faker.internet().password(4, 8, false, false));
+    }
+
+    public CourierLoginData createLoginDataWithEmptyPassword() {
+        return new CourierLoginData(faker.name().username(), EMPTY_STRING);
+    }
+
+    // Универсальный метод для выполнения API запросов
+    private Response executeApiRequest(String endpoint, Object body, String method) {
+        var request = given()
+                .header("Content-type", "application/json");
+
+        if (body != null) {
+            request.body(body);
+        }
+
+        switch (method.toUpperCase()) {
+            case "POST":
+                return request.post(endpoint);
+            case "GET":
+                return request.get(endpoint);
+            case "DELETE":
+                return request.delete(endpoint);
+            case "PUT":
+                return request.put(endpoint);
+            default:
+                throw new IllegalArgumentException("Unsupported HTTP method: " + method);
+        }
+    }
+
+    // API методы
     @Step("Создание курьера")
-    public Response creatingCourier(){
-        CourierAuthorization json = new CourierAuthorization(username, password, firstName);
-        Response response = given()
-                .header("Content-type", "application/json")
-                .body(json)
-                .when()
-                .post(END_POINT_COURIER);
-        return response;
+    public Response createCourier(CourierAuthorization courierData) {
+        return executeApiRequest(courierEndpoint, courierData, "POST");
     }
 
-    @Step("Получение по Id")
-    public int getIdCourier(){
-        CourierLoginData json = new CourierLoginData(username,password);
-        CourierLogin loginID = given()
-                .header("Content-type", "application/json")
-                .body(json)
-                .post(END_POINT_COURIER_LOGIN)
-                .as(CourierLogin.class);
-        return loginID.getId();
+    @Step("Создание курьера с двумя полями вместо трёх")
+    public Response createCourierWithTwoFields() {
+        CourierAuthorizationWithoutField requestBody = new CourierAuthorizationWithoutField(
+                faker.name().username(),
+                faker.name().firstName()
+        );
+        return executeApiRequest(courierEndpoint, requestBody, "POST");
     }
 
-    @Step("Удаление по Id")
-    public void deleteIdCourier(){
-        Response response = given()
-                .header("Conrent-type", "application/json")
-                .when()
-                .delete(END_POINT_COURIER + "/" + getIdCourier());
+    @Step("Авторизация курьера")
+    public Response loginCourier(CourierLoginData loginData) {
+        return executeApiRequest(courierLoginEndpoint, loginData, "POST");
     }
 
-    @Step("Авторизация")
-    public Response authorizationCourier(){
-        CourierLoginData json = new CourierLoginData(username, password);
-        Response response = given()
-                .header("Content-type","application/json")
-                .body(json)
-                .when()
-                .post(END_POINT_COURIER_LOGIN);
-        return response;
+    @Step("Получение ID курьера")
+    public int getCourierId(CourierLoginData loginData) {
+        Response response = loginCourier(loginData);
+        return response.then().extract().path("id");
     }
 
-    @Step("Неверный логин")
-    public Response authorizationCourierInvalidLogin(){
-        CourierLoginData json = new CourierLoginData(invalid_username, password);
-        Response response = given()
-                .header("Content-type", "application/json")
-                .body(json)
-                .when()
-                .post(END_POINT_COURIER_LOGIN);
-        return response;
+    @Step("Удаление курьера по ID")
+    public Response deleteCourier(int courierId) {
+        String deleteEndpoint = courierEndpoint + "/" + courierId;
+        return executeApiRequest(deleteEndpoint, null, "DELETE");
     }
 
-    @Step("Пустая строка в логине")
-    public Response authorizationCourierOneFieldLogin(){
-        CourierLoginData json = new CourierLoginData(null_username, password);
-        Response response = given()
-                .header("Content-type", "application/json")
-                .body(json)
-                .when()
-                .post(END_POINT_COURIER_LOGIN);
-        return response;
+    // Специализированные методы для различных сценариев авторизации
+    @Step("Авторизация с неверным логином")
+    public Response loginWithInvalidLogin() {
+        return loginCourier(createLoginDataWithInvalidLogin());
     }
 
-    @Step("Пустая строка в пароле")
-    public Response authorizationCourierOneFieldPassword(){
-        CourierLoginData json = new CourierLoginData(username, null_password);
-        Response response = given()
-                .header("Content-type", "application/json")
-                .body(json)
-                .when()
-                .post(END_POINT_COURIER_LOGIN);
-        return response;
+    @Step("Авторизация с неверным паролем")
+    public Response loginWithInvalidPassword() {
+        return loginCourier(createLoginDataWithInvalidPassword());
     }
 
-    @Step("Неверный пароль")
-    public Response authorizationCourierInvalidPassword(){
-        CourierLoginData json = new CourierLoginData(username, invalid_password);
-        Response response = given()
-                .header("Content-type", "application/json")
-                .body(json)
-                .when()
-                .post(END_POINT_COURIER_LOGIN);
-        return response;
+    @Step("Авторизация с пустым логином")
+    public Response loginWithEmptyLogin() {
+        return loginCourier(createLoginDataWithEmptyLogin());
     }
 
-
+    @Step("Авторизация с пустым паролем")
+    public Response loginWithEmptyPassword() {
+        return loginCourier(createLoginDataWithEmptyPassword());
+    }
 }

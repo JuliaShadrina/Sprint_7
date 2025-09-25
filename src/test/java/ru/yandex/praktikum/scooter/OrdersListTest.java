@@ -2,6 +2,7 @@ package ru.yandex.praktikum.scooter;
 
 import io.qameta.allure.Description;
 import io.qameta.allure.junit4.DisplayName;
+import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.junit.Before;
 import org.junit.Test;
@@ -11,15 +12,15 @@ import ru.yandex.praktikum.scooter.api.*;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class OrdersListTest {
-    private final String BASE_URL = "https://qa-scooter.praktikum-services.ru/";
+    private final BaseURL baseURL = new BaseURL();;
     private final String ORDER_ENDPOINT = "/api/v1/orders";
     private final String CANCEL_ORDER_ENDPOINT = "/api/v1/orders/cancel";
 
-    Order order = new Order(BASE_URL, ORDER_ENDPOINT, CANCEL_ORDER_ENDPOINT);
+    Order order = new Order(RestAssured.baseURI, ORDER_ENDPOINT, CANCEL_ORDER_ENDPOINT);
 
     @Before
     public void setUp() {
-        order.setUp(); // настройка базового URI
+        baseURL.setUp(); // настройка базового URI
     }
 
     @Test
@@ -33,4 +34,3 @@ public class OrdersListTest {
                 .statusCode(200);
     }
 }
-
